@@ -30,3 +30,10 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "cxproject-4eff1.firebasestorage.app"
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "1051371564600"
 NEXT_PUBLIC_FIREBASE_APP_ID = "1:1051371564600:web:bc4003a9971be8fba300cd"
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = "G-J3ZRDVT2KH"
+
+# Shiprocket (optional). If empty, checkout uses fallback shipping (flat ₹99 / free above ₹2999).
+# Get credentials from https://app.shiprocket.in/api-user
+SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in"
+SHIPROCKET_EMAIL = ""
+SHIPROCKET_PASSWORD = ""
+SHIPROCKET_PICKUP_PINCODE = "110001"
