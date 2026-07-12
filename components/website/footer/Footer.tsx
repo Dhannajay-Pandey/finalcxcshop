@@ -24,7 +24,7 @@ export interface LegalLink {
 export default function Footer() {
   
   return (
-    <footer className="bg-[#1A1A1A] text-white">
+    <footer className="bg-[#e8e4dc] text-[#1A1A1A]">
       <Newsletter />
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 md:px-10 py-10 sm:py-14 grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10">
         <BrandSection />

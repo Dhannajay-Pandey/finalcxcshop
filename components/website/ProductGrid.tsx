@@ -35,22 +35,32 @@ async function getProducts({
   isNewArrival?: boolean; 
   category?: string;
 } = {}): Promise<Product[]> {
-  try {
-    await connectDB();
-    const query: Record<string, unknown> = { isActive: true };
-    if (isNewArrival) query.isNewArrival = true;
-    if (category) {
-      const categoryDoc = await CategoryModel.findOne({ slug: category, isActive: true, isDeleted: false });
-      if (categoryDoc) query.category = categoryDoc._id;
+  const timeoutPromise = new Promise<Product[]>((resolve) =>
+    setTimeout(() => resolve([]), 10000)
+  );
+  const fetchPromise = (async () => {
+    try {
+      await connectDB();
+      const query: Record<string, unknown> = { isActive: true };
+      if (isNewArrival) query.isNewArrival = true;
+      if (category) {
+        const categoryDoc = await CategoryModel.findOne({ slug: category, isActive: true, isDeleted: false });
+        if (categoryDoc) query.category = categoryDoc._id;
+      }
+      const products = await ProductModel.find(query)
+        .populate("category", "name slug")
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean();
+      return JSON.parse(JSON.stringify(products)) as Product[];
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      return [] as Product[];
     }
-    const products = await ProductModel.find(query)
-      .populate("category", "name slug")
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-    return JSON.parse(JSON.stringify(products));
-  } catch (error) {
-    console.error("Error fetching products:", error);
+  })();
+  try {
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } catch {
     return [];
   }
 }

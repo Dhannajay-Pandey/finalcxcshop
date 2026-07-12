@@ -11,6 +11,7 @@ interface Category {
   name: string;
   slug: string;
   isActive: boolean;
+  parent?: { _id: string; name: string; slug: string } | string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -346,10 +347,35 @@ export default function CategoriesPage() {
                 </td>
               </tr>
             ) : (
-              filteredCategories.map((cat) => (
+              filteredCategories.map((cat) => {
+                const parentName =
+                  cat.parent && typeof cat.parent === "object"
+                    ? cat.parent.name
+                    : null;
+                return (
                 <tr key={cat._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="p-3">
-                    <div className="font-medium text-[#1A1A1A]">{cat.name}</div>
+                    <div className="font-medium text-[#1A1A1A] flex items-center gap-2">
+                      {parentName && (
+                        <span className="text-gray-400 text-xs">↳</span>
+                      )}
+                      <span>{cat.name}</span>
+                      {parentName ? (
+                        <span
+                          data-testid={`category-parent-tag-${cat._id}`}
+                          className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700"
+                        >
+                          Sub of {parentName}
+                        </span>
+                      ) : (
+                        <span
+                          data-testid={`category-root-tag-${cat._id}`}
+                          className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600"
+                        >
+                          Root
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400 md:hidden">/{cat.slug}</div>
                   </td>
                   <td className="p-3 text-sm text-gray-500 hidden md:table-cell">{cat.slug}</td>
@@ -389,7 +415,8 @@ export default function CategoriesPage() {
                     </div>
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>

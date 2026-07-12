@@ -55,7 +55,7 @@ const SocailLink = () => {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={social.label}
-            className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-white hover:bg-white hover:text-black transition-all duration-300"
+            className="w-10 h-10 rounded-full border border-[#1A1A1A]/30 flex items-center justify-center text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white transition-all duration-300"
           >
             <Icon size={18} />
           </Link>

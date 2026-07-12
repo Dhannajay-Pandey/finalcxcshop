@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Raleway } from "next/font/google";
+import { Suspense } from "react";
 
 import "./globals.css";
 import "react-toastify/dist/ReactToastify.css";
 
 import AutoTitle from "@/components/AutoTitle";
+import Analytics from "@/components/Analytics";
 import Providers from "@/components/providers/ThemeProvider";
 import GlobalProvider from "@/components/application/GlobalProvider";
 
@@ -48,6 +50,9 @@ export default function RootLayout({
     >
       <body className="min-h-screen flex flex-col">
         <AutoTitle />
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
 
         <GlobalProvider>
           <Providers>

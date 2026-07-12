@@ -18,14 +18,24 @@ interface Category {
 }
 
 async function getCategories(): Promise<Category[]> {
+  const timeoutPromise = new Promise<Category[]>((resolve) =>
+    setTimeout(() => resolve([]), 10000)
+  );
+  const fetchPromise = (async () => {
+    try {
+      await connectDB();
+      const categories = await CategoryModel.find({ isActive: true, isDeleted: false })
+        .sort({ createdAt: -1 })
+        .lean();
+      return JSON.parse(JSON.stringify(categories)) as Category[];
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      return [] as Category[];
+    }
+  })();
   try {
-    await connectDB();
-    const categories = await CategoryModel.find({ isActive: true, isDeleted: false })
-      .sort({ createdAt: -1 })
-      .lean();
-    return JSON.parse(JSON.stringify(categories));
-  } catch (error) {
-    console.error("Error fetching categories:", error);
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } catch {
     return [];
   }
 }

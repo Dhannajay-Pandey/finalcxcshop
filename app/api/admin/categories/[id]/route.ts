@@ -82,6 +82,12 @@ export async function PUT(
     const name = formData.get("name")?.toString().trim();
     const slug = formData.get("slug")?.toString().trim();
     const description = formData.get("description")?.toString().trim() || "";
+    const parentRaw = formData.get("parent");
+    const hasParentField = parentRaw !== null && parentRaw !== undefined;
+    const parent =
+      parentRaw && parentRaw !== "" && parentRaw !== "null"
+        ? parentRaw.toString()
+        : null;
     const imageFile = formData.get("image") as File | null;
     const isActive = formData.get("isActive") === "true";
 
@@ -181,6 +187,20 @@ export async function PUT(
     category.description = description;
     category.image = imageData;
     if (isActive !== undefined) category.isActive = isActive;
+
+    // Handle parent field (prevent self-parent and validate ObjectId)
+    if (hasParentField) {
+      if (parent === null) {
+        category.parent = null;
+      } else if (Types.ObjectId.isValid(parent)) {
+        if (parent === id) {
+          return jsonRes(400, "A category cannot be its own parent");
+        }
+        category.parent = parent;
+      } else {
+        return jsonRes(400, "Invalid parent category ID");
+      }
+    }
 
     await category.save();
     

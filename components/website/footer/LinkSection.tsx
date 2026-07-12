@@ -10,7 +10,7 @@ export function LinkSection({
 }) {
   return (
     <div>
-      <p className="text-[10px] sm:text-xs tracking-widest uppercase font-semibold mb-3 sm:mb-4 text-white/80">
+      <p className="text-[10px] sm:text-xs tracking-widest uppercase font-semibold mb-3 sm:mb-4 text-[#1A1A1A]">
         {title}
       </p>
       <ul className="space-y-2 sm:space-y-2.5">
@@ -18,7 +18,7 @@ export function LinkSection({
           <li key={item.label}>
             <a
               href={item.href}
-              className="text-xs sm:text-sm text-white/50 hover:text-white transition-colors"
+              className="text-xs sm:text-sm text-[#1A1A1A]/70 hover:text-[#1A1A1A] transition-colors"
             >
               {item.label}
             </a>

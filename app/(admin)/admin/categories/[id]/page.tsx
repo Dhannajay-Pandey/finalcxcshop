@@ -12,6 +12,7 @@ interface Category {
   slug: string;
   description: string;
   image?: { url: string; public_id: string };
+  parent?: { _id: string; name: string; slug: string } | string | null;
   isActive: boolean;
 }
 
@@ -44,8 +45,38 @@ export default function EditCategoryPage() {
     name: "",
     slug: "",
     description: "",
+    parent: "",
     isActive: true,
   });
+  const [parentOptions, setParentOptions] = useState<
+    { _id: string; name: string; slug: string }[]
+  >([]);
+
+  // Fetch available root categories for parent selector
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/categories");
+        const data = await res.json();
+        if (data?.ok && Array.isArray(data.data)) {
+          setParentOptions(
+            data.data
+              .filter(
+                (c: { _id: string; parent?: unknown }) =>
+                  !c.parent && c._id !== id
+              )
+              .map((c: { _id: string; name: string; slug: string }) => ({
+                _id: c._id,
+                name: c.name,
+                slug: c.slug,
+              }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load parent categories:", err);
+      }
+    })();
+  }, [id]);
 
   const generateSlug = useCallback((value: string) => {
     return value
@@ -107,10 +138,17 @@ export default function EditCategoryPage() {
         if (data.ok && data.data) {
           const cat = data.data;
           setCategory(cat);
+          const parentId =
+            cat.parent && typeof cat.parent === "object"
+              ? cat.parent._id
+              : typeof cat.parent === "string"
+              ? cat.parent
+              : "";
           setFormData({
             name: cat.name || "",
             slug: cat.slug || "",
             description: cat.description || "",
+            parent: parentId,
             isActive: cat.isActive ?? true,
           });
         } else {
@@ -246,6 +284,7 @@ export default function EditCategoryPage() {
       payload.append("name", formData.name.trim());
       payload.append("slug", formData.slug.trim());
       payload.append("description", formData.description.trim());
+      payload.append("parent", formData.parent || "");
       payload.append("isActive", String(formData.isActive));
       if (image) {
         payload.append("image", image);
@@ -393,6 +432,34 @@ export default function EditCategoryPage() {
             )}
             <p className="text-gray-400 text-xs mt-1">
               {formData.description.length}/500 characters
+            </p>
+          </div>
+
+          {/* Parent Category (optional) */}
+          <div>
+            <label className="block mb-2 font-medium text-sm">
+              Parent Category
+              <span className="text-gray-400 text-xs ml-2">(leave empty for a root category)</span>
+            </label>
+            <select
+              name="parent"
+              value={formData.parent}
+              onChange={(e) => {
+                setFormData((prev) => ({ ...prev, parent: e.target.value }));
+                setIsDirty(true);
+              }}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-[#C17A56] transition"
+              data-testid="edit-category-parent-select"
+            >
+              <option value="">— No parent (Root category) —</option>
+              {parentOptions.map((opt) => (
+                <option key={opt._id} value={opt._id}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-gray-400 text-xs mt-1">
+              Choose a parent to make this a sub-category. Only root categories are shown.
             </p>
           </div>
           

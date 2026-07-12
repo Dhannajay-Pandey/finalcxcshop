@@ -33,8 +33,37 @@ export default function AddCategoryPage() {
     name: "",
     slug: "",
     description: "",
+    parent: "",
     isActive: true,
   });
+  const [parentOptions, setParentOptions] = useState<
+    { _id: string; name: string; slug: string }[]
+  >([]);
+
+  // Load available root categories for parent selection
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/categories");
+        const data = await res.json();
+        if (data?.ok && Array.isArray(data.data)) {
+          // Only allow root categories (no parent) to be selected as parent,
+          // to keep the hierarchy at max 2 levels.
+          setParentOptions(
+            data.data
+              .filter((c: { parent?: unknown }) => !c.parent)
+              .map((c: { _id: string; name: string; slug: string }) => ({
+                _id: c._id,
+                name: c.name,
+                slug: c.slug,
+              }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load parent categories:", err);
+      }
+    })();
+  }, []);
 
   // Clean up on unmount
   useEffect(() => {
@@ -259,6 +288,7 @@ export default function AddCategoryPage() {
       payload.append("name", formData.name.trim());
       payload.append("slug", formData.slug.trim());
       payload.append("description", formData.description.trim());
+      payload.append("parent", formData.parent || "");
       payload.append("isActive", String(formData.isActive)); // ✅ Fixed: Now sending isActive
       if (image) {
         payload.append("image", image);
@@ -282,6 +312,7 @@ export default function AddCategoryPage() {
           name: "",
           slug: "",
           description: "",
+          parent: "",
           isActive: true,
         });
         setImage(null);
@@ -443,6 +474,34 @@ export default function AddCategoryPage() {
             )}
             <p className="text-gray-400 text-xs mt-1">
               {formData.description.length}/500 characters
+            </p>
+          </div>
+
+          {/* Parent Category (optional) */}
+          <div>
+            <label className="block mb-2 font-medium text-sm">
+              Parent Category
+              <span className="text-gray-400 text-xs ml-2">(leave empty for a root category)</span>
+            </label>
+            <select
+              name="parent"
+              value={formData.parent}
+              onChange={(e) => {
+                setFormData((prev) => ({ ...prev, parent: e.target.value }));
+                setIsDirty(true);
+              }}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-[#C17A56] transition"
+              data-testid="add-category-parent-select"
+            >
+              <option value="">— No parent (Root category) —</option>
+              {parentOptions.map((opt) => (
+                <option key={opt._id} value={opt._id}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-gray-400 text-xs mt-1">
+              Choose a parent to create a sub-category. Only root categories are shown.
             </p>
           </div>
           

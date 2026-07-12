@@ -12,7 +12,9 @@ cloudinary.config({
 export async function GET() {
   try {
     await connectDB();
-    const categories = await CategoryModel.find({ isDeleted: false }).sort({ createdAt: -1 });
+    const categories = await CategoryModel.find({ isDeleted: false })
+      .populate("parent", "name slug")
+      .sort({ createdAt: -1 });
     return jsonRes(200, "Categories fetched", categories);
   } catch (e) {
     return jsonRes(500, e.message);
@@ -28,6 +30,8 @@ export async function POST(req) {
     const name = formData.get("name");
     const slug = formData.get("slug");
     const description = formData.get("description") || "";
+    const parentRaw = formData.get("parent");
+    const parent = parentRaw && parentRaw !== "" && parentRaw !== "null" ? parentRaw : null;
     const imageFile = formData.get("image");
 
     if (!name || !slug) return jsonRes(400, "Name and slug are required");
@@ -51,7 +55,7 @@ export async function POST(req) {
       imageData = { url: result.secure_url, public_id: result.public_id };
     }
 
-    const category = await CategoryModel.create({ name, slug, description, image: imageData });
+    const category = await CategoryModel.create({ name, slug, description, parent, image: imageData });
     return jsonRes(201, "Category created", category);
   } catch (e) {
     return jsonRes(500, e.message);
