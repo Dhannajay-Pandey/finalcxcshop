@@ -25,6 +25,12 @@ Live URL: https://finalcxcshop.projectdemohp.workers.dev/
 - `lib/databaseConnection.js` — rewritten: ping-validates connection each request,
   force-reconnects when stale, retry once, dedup via `globalThis.__mongoConnState`
   (each Next chunk bundles its own module copy), resets `$wasForceClosed` after connect.
+- ROUND 2 (refresh bug on deployed worker): on Workers, `close(true)` on a stale socket
+  itself throws/hangs, leaving readyState=1, so `mongoose.connect()` short-circuited and
+  returned the dead connection. Fix: timeout-wrapped close + ping, then force
+  `mongoose.connection.readyState = 0` so openUri creates a brand-new MongoClient.
+  VERIFIED on real workerd (wrangler dev, Node 22 at /tmp/node-v22.14.0-linux-arm64):
+  5 refresh rounds + post-idle requests all 200, zero stale-socket errors.
 - `app/(website)/category/[slug]/page.tsx` — direct DB query (was self-fetch).
 - `app/(website)/products/page.tsx` — direct DB query (was self-fetch).
 - `app/(website)/products/[slug]/page.tsx` — direct DB query + fixed similar-products
