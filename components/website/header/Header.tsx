@@ -11,6 +11,8 @@ import {
   Menu,
   X,
   LogOut,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -28,6 +30,8 @@ export default function Header() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
+  const [expandedSubMenu, setExpandedSubMenu] = useState<string | null>(null);
   const dispatch = useDispatch();
 
   const auth = useSelector((state: RootState) => state.authStore.auth) as any;
@@ -246,18 +250,96 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Menu links */}
+        {/* Menu links with expandable sub-categories */}
         <nav className="flex flex-col">
-          {megaMenuData.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              onClick={() => setMobileMenu(false)}
-              className="border-b px-5 py-4 text-base hover:bg-gray-50"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {megaMenuData.map((item) => {
+            const hasCategories = item.categories && item.categories.length > 0;
+            const isExpanded = expandedMenu === item.label;
+
+            return (
+              <div key={item.label} className="border-b" data-testid={`mobile-menu-item-${item.label.replace(/\s+/g, '-').toLowerCase()}`}>
+                <div className="flex items-center">
+                  <Link
+                    href={item.href}
+                    onClick={() => {
+                      if (!hasCategories) setMobileMenu(false);
+                    }}
+                    className="flex-1 px-5 py-4 text-base hover:bg-gray-50"
+                  >
+                    {item.label}
+                  </Link>
+                  {hasCategories && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMenu(isExpanded ? null : item.label);
+                        setExpandedSubMenu(null);
+                      }}
+                      className="px-5 py-4 hover:bg-gray-50"
+                      aria-label={`Toggle ${item.label} sub-menu`}
+                      data-testid={`mobile-menu-toggle-${item.label.replace(/\s+/g, '-').toLowerCase()}`}
+                    >
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  )}
+                </div>
+
+                {hasCategories && isExpanded && (
+                  <div className="bg-gray-50 pb-2" data-testid={`mobile-submenu-${item.label.replace(/\s+/g, '-').toLowerCase()}`}>
+                    {item.categories.map((cat) => {
+                      const subKey = `${item.label}::${cat.title}`;
+                      const subExpanded = expandedSubMenu === subKey;
+                      const hasSubLinks = cat.links && cat.links.length > 0;
+                      return (
+                        <div key={cat.title}>
+                          <div className="flex items-center">
+                            <Link
+                              href={cat.href}
+                              onClick={() => setMobileMenu(false)}
+                              className="flex-1 px-8 py-3 text-sm font-medium text-gray-800 hover:bg-white"
+                            >
+                              {cat.title}
+                            </Link>
+                            {hasSubLinks && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedSubMenu(subExpanded ? null : subKey)
+                                }
+                                className="px-5 py-3 hover:bg-white"
+                                aria-label={`Toggle ${cat.title} sub-links`}
+                              >
+                                {subExpanded ? (
+                                  <ChevronUp size={14} />
+                                ) : (
+                                  <ChevronDown size={14} />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                          {hasSubLinks && subExpanded && (
+                            <ul className="bg-white">
+                              {cat.links.map((link) => (
+                                <li key={link.href}>
+                                  <Link
+                                    href={link.href}
+                                    onClick={() => setMobileMenu(false)}
+                                    className="block px-12 py-2 text-sm text-gray-600 hover:text-black hover:bg-gray-50"
+                                  >
+                                    {link.label}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Bottom links */}

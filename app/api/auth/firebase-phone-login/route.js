@@ -9,25 +9,61 @@ function jsonResponse(status, message, data = null) {
 export async function POST(request) {
   try {
     await connectDB();
-    const { phone, name, uid } = await request.json();
 
-    if (!phone || !uid) {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse(400, "Invalid request body");
+    }
+
+    const { phone, name, uid } = body || {};
+
+    if (!phone || !uid || typeof phone !== "string" || typeof uid !== "string") {
       return jsonResponse(400, "Phone number and Firebase UID are required");
     }
 
     const normalizedPhone = phone.trim();
-    const normalizedName = name?.trim() || "Customer";
+    const normalizedName = (name && typeof name === "string" && name.trim()) || "Customer";
+    const derivedEmail = `${uid}@firebase.local`;
 
-    let user = await UserModel.findOne({ phone: normalizedPhone });
+    // Try to find existing user by phone OR by derived firebase email
+    let user = await UserModel.findOne({
+      $or: [{ phone: normalizedPhone }, { email: derivedEmail }],
+    });
 
     if (!user) {
-      user = await UserModel.create({
-        name: normalizedName,
-        email: `${uid}@firebase.local`,
-        password: uid,
-        phone: normalizedPhone,
-        isEmailVerified: true,
-      });
+      try {
+        user = await UserModel.create({
+          name: normalizedName,
+          email: derivedEmail,
+          password: uid, // dummy password; user logs in via Firebase, not password
+          phone: normalizedPhone,
+          isEmailVerified: true,
+          role: "user",
+        });
+      } catch (createErr) {
+        // Handle race condition where user was created between findOne & create
+        if (createErr && createErr.code === 11000) {
+          user = await UserModel.findOne({
+            $or: [{ phone: normalizedPhone }, { email: derivedEmail }],
+          });
+        } else {
+          throw createErr;
+        }
+      }
+    } else if (!user.phone || user.phone !== normalizedPhone) {
+      // Backfill phone number if missing (existing user upgrade)
+      user.phone = normalizedPhone;
+      try {
+        await user.save();
+      } catch {
+        // ignore backfill errors
+      }
+    }
+
+    if (!user) {
+      return jsonResponse(500, "Unable to resolve user account");
     }
 
     const token = await signToken({
@@ -51,6 +87,8 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("Firebase phone login error:", error);
-    return jsonResponse(500, error instanceof Error ? error.message : "Internal server error");
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    return jsonResponse(500, message);
   }
 }
