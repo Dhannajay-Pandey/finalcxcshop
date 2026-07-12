@@ -1,57 +1,50 @@
 # PRD — Cosmopolitan Ecommerce (Next.js on Cloudflare Workers)
 
 ## Original Problem Statement
-User (Hindi/Hinglish): "bhai ye git ka code gadbad hai sahi krna hai deploy nahi hai aur jo file upload kia hu usme sare enviorments hai"
-Translation: The git repo is broken; deployment is failing. Uploaded a `.env.local` file with all environment variables. Need to fix so deploy succeeds.
+1. (Earlier session) Git repo broken, deploy failing — fixed wrangler.toml TOML errors.
+2. (June 2026) User: "category aur sub category page, product detail page open nahi ho rahe, MongoDB baar-baar website se hat ja raha hai — permanent solution chahiye."
+Live URL: https://finalcxcshop.projectdemohp.workers.dev/
 
-Repo: https://github.com/suhaibusmani0-lang/cxnew71126.git (branch `main`)
-Deploy target: Cloudflare Pages / Workers via `@opennextjs/cloudflare`.
+## Architecture
+- Next.js 16 (App Router) deployed to Cloudflare Workers via @opennextjs/cloudflare
+- MongoDB Atlas via mongoose 9 (cluster: cosmopolitanxccessories, db: support_db)
+- Cloudinary images, Razorpay payments, Firebase phone auth, Nodemailer emails
 
-## Root Cause of Failed Deploy
-Wrangler build error at line 15 of `wrangler.toml`:
-```
-✘ [ERROR] Invalid TOML document: invalid value
-    /opt/buildhome/repo/wrangler.toml:15:12
-      15 │ MONGODB_URI=mongodb+srv://...
-```
-Environment variables (`MONGODB_URI=...`, `JWT_SECRET=...`, etc.) were pasted directly at the top level of `wrangler.toml` **without** a `[vars]` section header. TOML disallows bare `key=value` lines that are not inside a table, so Wrangler's parser rejected the file and `wrangler deploy` aborted.
+## Root Causes Found (June 2026 session)
+1. **Stale mongoose connection on Cloudflare Workers**: Workers close TCP sockets between
+   requests ("Cannot perform I/O on behalf of a different request"). Old `connectDB` cached
+   the connection forever → intermittent Cloudflare error 1101 / 500 on APIs and pages.
+2. **Mongoose `$wasForceClosed` bug**: `connection.close(true)` sets `$wasForceClosed=true`
+   and mongoose NEVER resets it on reconnect → all model queries throw
+   "Connection was force closed" forever. Must manually reset after reconnect.
+3. **Server pages self-fetching own worker URL**: category/products pages fetched
+   `NEXT_PUBLIC_BASE_URL/api/...` from inside the worker (unreliable subrequest, doubles
+   failure rate). Converted to direct DB queries.
 
-Additional problems found:
-- `.gitignore` still contained unresolved git merge-conflict markers (`<<<<<<< HEAD`, `=======`, `>>>>>>>`).
-- `.dev.vars` (containing production secrets) was committed to git.
-- `package.json` build + `wrangler.toml` `[build]` command caused double OpenNext build (minor, not blocking).
+## Fixes Applied (June 2026)
+- `lib/databaseConnection.js` — rewritten: ping-validates connection each request,
+  force-reconnects when stale, retry once, dedup via `globalThis.__mongoConnState`
+  (each Next chunk bundles its own module copy), resets `$wasForceClosed` after connect.
+- `app/(website)/category/[slug]/page.tsx` — direct DB query (was self-fetch).
+- `app/(website)/products/page.tsx` — direct DB query (was self-fetch).
+- `app/(website)/products/[slug]/page.tsx` — direct DB query + fixed similar-products
+  bug (was reading wrong response shape, never showed).
+- `.env.local` / `.dev.vars` created locally (gitignored) for testing.
 
-## Fixes Applied (commit `9f861b1`)
-1. **`wrangler.toml`** — rewritten with valid TOML:
-   - Kept: `name`, `main`, `compatibility_date = "2024-09-23"`, `compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]`.
-   - Added: `[assets]` block (directory `.open-next/assets`, binding `ASSETS`) required by OpenNext.
-   - Added: `[vars]` block containing all 22 environment variables in valid TOML `key = "value"` form.
-   - Removed: the broken `[build]` block (Cloudflare Pages uses its own dashboard build command; `wrangler deploy` users can rely on `npm run build` or `npm run deploy`).
-2. **`.gitignore`** — merge conflict markers removed; standard Next.js + Wrangler + OpenNext ignores (`.env`, `.env.*`, `.dev.vars`, `.dev.vars.*`, `.open-next`, `.wrangler`, `.next`, `node_modules`, etc.).
-3. **`.dev.vars`** — removed from git tracking (`git rm --cached`) so future edits stay local only.
-4. **`.dev.vars.example`** — added template with placeholder values so contributors know what keys to set.
-5. **`.env.local`** — created locally at `/app/.env.local` from the file the user uploaded (dev/localhost values). Ignored by git.
-6. Committed and pushed to `origin/main`.
+## Verification (local, next build + next start)
+- All 5 category pages (decor, home-fragrance, tabletop-bar, bakhoor-incense, new): 200
+- /product/[slug], /products, /products/[slug]: 200
+- /api/categories, /api/products, /api/products/[slug], /api/categories?slug=: 200
+- Parallel hammer (10 concurrent): all 200, zero DB errors in logs
+- Screenshot: category page renders with products, filters, prices
 
-## Status
-- TOML validated with Python `tomllib` (parses cleanly, 22 vars).
-- Commit `9f861b1` pushed to `origin/main`. If Cloudflare Pages has a GitHub trigger, a fresh build will run automatically.
-- No node_modules installed / no local build run — Cloudflare will do that in its build container.
+## Deployment (USER ACTION REQUIRED)
+Code is fixed locally but must be deployed to Cloudflare:
+- Option A: "Save to GitHub" from chat → Cloudflare auto-build (if connected)
+- Option B: locally `npm install && npm run deploy` (needs wrangler login)
+- Ensure Atlas Network Access allows 0.0.0.0/0 (Workers IPs vary)
 
-## Action Items for User
-1. Trigger a fresh deploy from Cloudflare Pages (or wait for the auto-deploy from the new commit).
-2. **Rotate all secrets** — MongoDB, JWT_SECRET, Nodemailer app password, Cloudinary API secret, Razorpay keys, Firebase API key. These were committed in `.dev.vars` and remain in git history, so they must be considered leaked.
-3. If the deployed URL is not `cosmopolitan.pages.dev`, update `NEXT_PUBLIC_BASE_URL` and `NEXT_PUBLIC_APP_URL` in `wrangler.toml`, or move them to Cloudflare Pages dashboard → Environment Variables and remove from `[vars]`.
-4. For better security, migrate sensitive keys (MongoDB, JWT, Cloudinary secret, Razorpay secret, Nodemailer pass) to Cloudflare secrets:
-   ```
-   npx wrangler secret put MONGODB_URI
-   npx wrangler secret put JWT_SECRET
-   ...
-   ```
-   and remove them from `[vars]` in `wrangler.toml`.
-
-## Backlog / Future
-- Move all sensitive credentials out of `[vars]` into Cloudflare secrets.
-- Add a proper build cache configuration (R2 incremental cache) for faster Cloudflare cold starts (see `open-next.config.ts` commented reference).
-- Clean up duplicate `open-next.config.ts` and `opennext.config.ts` files.
-- Delete stale `origin/master` branch on GitHub if unused.
+## Backlog
+- Move secrets from wrangler.toml [vars] to Cloudflare secrets (leaked in git history — rotate!)
+- Category page: include child-subcategory products on parent category
+- Durable Object connection pooling (optional latency optimization)

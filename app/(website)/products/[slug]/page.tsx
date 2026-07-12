@@ -1,7 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
- 
+import { connectDB } from "@/lib/databaseConnection";
+import ProductModel from "@/models/Product.model";
+import CategoryModel from "@/models/Category.model";
+
 export const dynamic = "force-dynamic";
 
 // ---------- Types ----------
@@ -21,22 +24,15 @@ interface Product {
   
 // ---------- Fetch product by slug ----------
 async function getProduct(slug: string): Promise<Product | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "/";
-  const url = `${baseUrl}/api/products/${slug}`;
-
-  // Optional: log the request for debugging
-  console.log(`[getProduct] fetching: ${url}`);
-
   try {
-    const res = await fetch(url, { cache: "no-store" }); // or 'force-cache'
-    if (!res.ok) {
-      console.log(`[getProduct] HTTP error: ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    return data.data?.product || null;
+    await connectDB();
+    const product = await ProductModel.findOne({ slug, isActive: true })
+      .populate("category", "name slug")
+      .lean();
+    if (!product) return null;
+    return JSON.parse(JSON.stringify(product)) as Product;
   } catch (error) {
-    console.error("[getProduct] fetch failed:", error);
+    console.error("[getProduct] DB error:", error);
     return null;
   }
 }
@@ -46,14 +42,22 @@ async function getSimilarProducts(
   categorySlug: string,
   currentProductId: string
 ): Promise<Product[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "/";
-  const url = `${baseUrl}/api/products?category=${categorySlug}&limit=4&exclude=${currentProductId}`;
-
   try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.data || [];
+    const category = await CategoryModel.findOne({
+      slug: categorySlug,
+      isActive: true,
+      isDeleted: false,
+    }).lean();
+    if (!category) return [];
+    const products = await ProductModel.find({
+      category: (category as { _id: unknown })._id,
+      _id: { $ne: currentProductId },
+      isActive: true,
+    })
+      .populate("category", "name slug")
+      .limit(4)
+      .lean();
+    return JSON.parse(JSON.stringify(products)) as Product[];
   } catch {
     return [];
   }

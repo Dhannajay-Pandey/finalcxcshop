@@ -3,31 +3,95 @@ import Image from "next/image";
 import Link from "next/link";
 import { Grid, List } from "lucide-react";
 import ProductFilterSidebar from "@/components/website/ProductFilterSidebar";
+import { connectDB } from "@/lib/databaseConnection";
+import CategoryModel from "@/models/Category.model";
+import ProductModel from "@/models/Product.model";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+function buildPriceRangeQueries(priceRanges: string[]) {
+  return priceRanges
+    .map((range) => {
+      switch (range) {
+        case "under500":
+          return { price: { $lt: 500 } };
+        case "500-1000":
+          return { price: { $gte: 500, $lte: 1000 } };
+        case "1000-2000":
+          return { price: { $gte: 1000, $lte: 2000 } };
+        case "2000-5000":
+          return { price: { $gte: 2000, $lte: 5000 } };
+        case "above5000":
+          return { price: { $gt: 5000 } };
+        default:
+          return null;
+      }
+    })
+    .filter(Boolean);
+}
+
 async function getCategoryData(slug: string, searchParams: SearchParams) {
-  const params = new URLSearchParams();
-  params.set("slug", slug);
+  try {
+    await connectDB();
 
-  Object.entries(searchParams).forEach(([key, value]) => {
-    if (value === undefined) return;
-    if (Array.isArray(value)) {
-      value.forEach((v) => params.append(key, v));
-    } else {
-      params.set(key, value);
-    }
-  });
+    const category = await CategoryModel.findOne({
+      slug,
+      isActive: true,
+      isDeleted: false,
+    }).lean();
+    if (!category) return null;
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "/"}/api/categories?${params.toString()}`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.data;
+    const get = (key: string) => {
+      const v = searchParams[key];
+      return Array.isArray(v) ? v[0] : v;
+    };
+
+    const page = parseInt(get("page") || "1");
+    const limit = parseInt(get("limit") || "12");
+    const sort = get("sort") || "newest";
+    const priceRanges = (get("priceRanges") || "").split(",").filter(Boolean);
+    const isSale = get("isSale") === "true";
+
+    let sortOption: Record<string, 1 | -1> = { createdAt: -1 };
+    if (sort === "price-low") sortOption = { price: 1 };
+    else if (sort === "price-high") sortOption = { price: -1 };
+    else if (sort === "popular") sortOption = { "ratings.count": -1 };
+    else if (sort === "rating") sortOption = { "ratings.average": -1 };
+
+    const baseQuery: Record<string, unknown> = {
+      category: (category as { _id: unknown })._id,
+      isActive: true,
+    };
+    const rangeQueries = buildPriceRangeQueries(priceRanges);
+    if (rangeQueries.length) baseQuery.$or = rangeQueries;
+    if (isSale) baseQuery.salePrice = { $exists: true, $ne: null };
+
+    const [products, total] = await Promise.all([
+      ProductModel.find(baseQuery)
+        .populate("category", "name slug")
+        .sort(sortOption)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      ProductModel.countDocuments(baseQuery),
+    ]);
+
+    return JSON.parse(
+      JSON.stringify({
+        category,
+        products,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      })
+    );
+  } catch (error) {
+    console.error("Category page DB error:", error);
+    return null;
+  }
 }
 
 export default async function CategoryPage({
