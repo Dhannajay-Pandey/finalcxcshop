@@ -1,7 +1,7 @@
 "use client";
 
-import BreadCrumb from "../../../../components/Admin/breadCrumb"; // Changed to PascalCase
-import UploadMedia from "../../../../components/Admin/UploadMedia";
+import BreadCrumb from "../../../../components/admin/breadCrumb"; // Changed to PascalCase
+import UploadMedia from "../../../../components/admin/UploadMedia";
 
 export default function MediaPage() {
  

@@ -1,6 +1,6 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSideBar } from "@/components/Admin/AppSideBar";
-import TopBar from "@/components/Admin/TopBar";
+import { AppSideBar } from "@/components/admin/AppSideBar";
+import TopBar from "@/components/admin/TopBar";
 
 export default function AdminDashboardLayout({ children }) {
   return (

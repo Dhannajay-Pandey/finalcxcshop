@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { showToast } from "@/lib/showToast";
 import { ADMIN_ADD_PRODUCT, ADMIN_EDIT_PRODUCT } from "@/routes/adminPanelRoutes";
-import BulkProductImport from "@/components/Admin/BulkProductImport";
+import BulkProductImport from "@/components/admin/BulkProductImport";
 
 import { 
   Loader2, 
